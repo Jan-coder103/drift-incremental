@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drift Game</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    canvas { display: block; }
+
+    #hud {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #fff;
+      z-index: 10;
+    }
+
+    #hud-speed {
+      position: absolute;
+      bottom: 30px; left: 30px;
+      font-size: 42px;
+      font-weight: 700;
+      text-shadow: 2px 2px 6px rgba(0,0,0,0.7);
+      letter-spacing: 1px;
+    }
+    #hud-speed span {
+      font-size: 18px;
+      font-weight: 400;
+      opacity: 0.7;
+      margin-left: 4px;
+    }
+
+    #hud-time {
+      position: absolute;
+      top: 20px; left: 30px;
+      font-size: 28px;
+      font-weight: 600;
+      text-shadow: 2px 2px 6px rgba(0,0,0,0.7);
+    }
+    #hud-time-label {
+      font-size: 13px;
+      font-weight: 400;
+      opacity: 0.6;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    #hud-best {
+      position: absolute;
+      top: 60px; left: 30px;
+      font-size: 16px;
+      font-weight: 400;
+      opacity: 0.5;
+      text-shadow: 1px 1px 4px rgba(0,0,0,0.7);
+    }
+
+    #hud-progress {
+      position: absolute;
+      top: 20px; right: 30px;
+      font-size: 16px;
+      font-weight: 500;
+      text-shadow: 1px 1px 4px rgba(0,0,0,0.7);
+    }
+
+    #hud-passive {
+      position: absolute;
+      top: 50px; right: 30px;
+      text-align: right;
+      text-shadow: 1px 1px 4px rgba(0,0,0,0.7);
+      display: none;
+    }
+    #hud-passive.active { display: block; }
+    #hud-passive-label {
+      font-size: 11px;
+      font-weight: 400;
+      opacity: 0.5;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    #hud-passive-rate {
+      font-size: 14px;
+      font-weight: 600;
+      color: #44ff88;
+    }
+    #hud-passive-accumulated {
+      font-size: 18px;
+      font-weight: 700;
+      color: #ffcc00;
+      margin-top: 2px;
+    }
+    #hud-passive-collect {
+      margin-top: 6px;
+      padding: 4px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(255,204,0,0.2);
+      color: #ffcc00;
+      border: 1px solid rgba(255,204,0,0.4);
+      border-radius: 6px;
+      cursor: pointer;
+      pointer-events: auto;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: background 0.2s;
+    }
+    #hud-passive-collect:hover { background: rgba(255,204,0,0.35); }
+
+    #hud-drift {
+      position: absolute;
+      top: 50%;
+      right: 40px;
+      transform: translateY(-50%);
+      text-align: right;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+    #hud-drift.active { opacity: 1; }
+    #hud-drift-points {
+      font-size: 64px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    #hud-drift-combo {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffcc00;
+      margin-top: 4px;
+    }
+    #hud-drift-angle {
+      font-size: 18px;
+      font-weight: 400;
+      opacity: 0.7;
+      margin-top: 2px;
+    }
+
+    #hud-drift-bank {
+      position: absolute;
+      top: 45%;
+      right: 40px;
+      transform: translateY(-50%);
+      text-align: right;
+      font-size: 32px;
+      font-weight: 700;
+      color: #44ff88;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    #hud-drift-bank.show { opacity: 1; }
+
+    #hud-drift-lost {
+      position: absolute;
+      top: 45%;
+      right: 40px;
+      transform: translateY(-50%);
+      text-align: right;
+      font-size: 28px;
+      font-weight: 700;
+      color: #ff4444;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    #hud-drift-lost.show { opacity: 1; }
+
+    #hud-total-drift {
+      position: absolute;
+      bottom: 30px; right: 30px;
+      font-size: 20px;
+      font-weight: 600;
+      text-shadow: 2px 2px 6px rgba(0,0,0,0.7);
+      text-align: right;
+    }
+    #hud-total-drift-label {
+      font-size: 12px;
+      font-weight: 400;
+      opacity: 0.5;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    #hud-hint {
+      position: absolute;
+      bottom: 80px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      font-weight: 400;
+      opacity: 0.4;
+      text-align: center;
+      text-shadow: 1px 1px 4px rgba(0,0,0,0.7);
+    }
+
+    #end-screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.6);
+      pointer-events: auto;
+    }
+    #end-screen.show { display: flex; }
+
+    #end-panel {
+      background: rgba(20, 20, 30, 0.92);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      padding: 40px 50px;
+      text-align: center;
+      min-width: 340px;
+    }
+    #end-panel h2 {
+      font-size: 32px;
+      font-weight: 800;
+      margin-bottom: 20px;
+      color: #ffcc00;
+    }
+    .end-stat {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .end-stat-label { opacity: 0.6; font-weight: 400; }
+    .end-stat-value { font-weight: 700; }
+    #end-xp { color: #66bbff; }
+    #end-money { color: #44ff88; }
+    #end-restart-btn {
+      margin-top: 24px;
+      padding: 12px 36px;
+      font-size: 16px;
+      font-weight: 700;
+      background: #ffcc00;
+      color: #1a1a2e;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      pointer-events: auto;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    #end-restart-btn:hover { background: #ffdd55; }
+
+    #hud-wallet {
+      position: absolute;
+      top: 20px; left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      text-shadow: 2px 2px 6px rgba(0,0,0,0.7);
+    }
+    .wallet-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .wallet-item .label { opacity: 0.5; font-weight: 400; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+    #hud-money-val { color: #44ff88; font-size: 18px; }
+    #hud-xp-val { color: #66bbff; }
+    #hud-level-val { color: #ffcc00; }
+
+    #shop-btn {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 700;
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      cursor: pointer;
+      pointer-events: auto;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      backdrop-filter: blur(4px);
+      transition: background 0.2s;
+    }
+    #shop-btn:hover { background: rgba(255,255,255,0.22); }
+
+    #shop-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.7);
+      pointer-events: auto;
+      z-index: 20;
+    }
+    #shop-overlay.show { display: flex; }
+
+    #shop-panel {
+      background: rgba(16, 16, 24, 0.95);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 32px 40px;
+      min-width: 420px;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    #shop-panel h2 {
+      font-size: 26px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      color: #ffcc00;
+    }
+    #shop-money {
+      font-size: 20px;
+      font-weight: 700;
+      color: #44ff88;
+      margin-bottom: 20px;
+    }
+    .shop-section {
+      margin-bottom: 20px;
+    }
+    .shop-section-title {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      opacity: 0.5;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .shop-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .shop-item-info {
+      flex: 1;
+    }
+    .shop-item-name {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .shop-item-desc {
+      font-size: 12px;
+      opacity: 0.45;
+      margin-top: 2px;
+    }
+    .shop-item-level {
+      font-size: 12px;
+      color: #66bbff;
+      margin-top: 2px;
+    }
+    .shop-buy-btn {
+      padding: 6px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      background: #ffcc00;
+      color: #1a1a2e;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      pointer-events: auto;
+      margin-left: 16px;
+      white-space: nowrap;
+    }
+    .shop-buy-btn:hover { background: #ffdd55; }
+    .shop-buy-btn:disabled {
+      background: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.3);
+      cursor: not-allowed;
+    }
+    .shop-buy-btn.maxed {
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.2);
+      cursor: default;
+    }
+    #shop-close-btn {
+      margin-top: 16px;
+      padding: 10px 30px;
+      font-size: 14px;
+      font-weight: 600;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      cursor: pointer;
+      pointer-events: auto;
+      width: 100%;
+    }
+    #shop-close-btn:hover { background: rgba(255,255,255,0.18); }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div id="hud-wallet">
+      <div class="wallet-item"><span class="label">Money</span> <span id="hud-money-val">$0</span></div>
+      <div class="wallet-item"><span class="label">XP</span> <span id="hud-xp-val">0</span></div>
+      <div class="wallet-item"><span class="label">Lvl</span> <span id="hud-level-val">1</span></div>
+    </div>
+    <div id="hud-speed">0<span>km/h</span></div>
+    <div id="hud-time">
+      <div id="hud-time-label">Run Time</div>
+      <div id="hud-time-value">0:00.000</div>
+    </div>
+    <div id="hud-best">Best: --:--.---</div>
+    <div id="hud-progress">0%</div>
+    <div id="hud-passive">
+      <div id="hud-passive-label">Passive Income</div>
+      <div id="hud-passive-rate">$0/min</div>
+      <div id="hud-passive-accumulated">$0</div>
+      <button id="hud-passive-collect">Collect</button>
+    </div>
+    <div id="hud-drift">
+      <div id="hud-drift-points">0</div>
+      <div id="hud-drift-combo">x1.0</div>
+      <div id="hud-drift-angle">0&deg;</div>
+    </div>
+    <div id="hud-drift-bank"></div>
+    <div id="hud-drift-lost"></div>
+    <div id="hud-total-drift">
+      <div id="hud-total-drift-label">Total Drift</div>
+      <div id="hud-total-drift-value">0</div>
+    </div>
+    <div id="hud-hint">WASD / Arrows to drive &bull; R to reset</div>
+    <button id="shop-btn">Upgrade Shop [Tab]</button>
+    <div id="end-screen">
+      <div id="end-panel">
+        <h2>Run Complete!</h2>
+        <div class="end-stat">
+          <span class="end-stat-label">Time</span>
+          <span class="end-stat-value" id="end-time">0:00.000</span>
+        </div>
+        <div class="end-stat">
+          <span class="end-stat-label">Drift Points</span>
+          <span class="end-stat-value" id="end-drift">0</span>
+        </div>
+        <div class="end-stat">
+          <span class="end-stat-label">XP Earned</span>
+          <span class="end-stat-value" id="end-xp">+0</span>
+        </div>
+        <div class="end-stat">
+          <span class="end-stat-label">Money Earned</span>
+          <span class="end-stat-value" id="end-money">$0</span>
+        </div>
+        <div class="end-stat">
+          <span class="end-stat-label">Best Time</span>
+          <span class="end-stat-value" id="end-best">--:--.---</span>
+        </div>
+        <button id="end-restart-btn">Race Again</button>
+      </div>
+    </div>
+    <div id="shop-overlay">
+      <div id="shop-panel">
+        <h2>Upgrade Shop</h2>
+        <div id="shop-money">$0</div>
+        <div class="shop-section">
+          <div class="shop-section-title">Car Upgrades</div>
+          <div id="shop-car-upgrades"></div>
+        </div>
+        <div class="shop-section">
+          <div class="shop-section-title">Track Upgrades</div>
+          <div id="shop-track-upgrades"></div>
+        </div>
+        <div class="shop-section">
+          <div class="shop-section-title">Second Driver</div>
+          <div id="shop-drivers"></div>
+        </div>
+        <button id="shop-close-btn">Close (Tab)</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+      "lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.20.0/dist/lil-gui.esm.js"
+    }
+  }
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
