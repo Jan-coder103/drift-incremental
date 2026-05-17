@@ -9,6 +9,7 @@ export class PassiveIncome {
     this.drivers = {};
     this.bestLapTimes = {};
     this.accumulatedMoney = 0;
+    this.totalPassiveEarned = 0;
     this.saveTimer = 0;
     this.load();
   }
@@ -78,6 +79,7 @@ export class PassiveIncome {
     const amount = Math.floor(this.accumulatedMoney);
     if (amount <= 0) return 0;
     this.accumulatedMoney -= amount;
+    this.totalPassiveEarned += amount;
     this.save();
     return amount;
   }
@@ -88,6 +90,7 @@ export class PassiveIncome {
         drivers: this.drivers,
         bestLapTimes: this.bestLapTimes,
         accumulatedMoney: this.accumulatedMoney,
+        totalPassiveEarned: this.totalPassiveEarned,
       }));
     } catch (e) { /* ignore */ }
   }
@@ -100,6 +103,15 @@ export class PassiveIncome {
       this.drivers = data.drivers || {};
       this.bestLapTimes = data.bestLapTimes || {};
       this.accumulatedMoney = data.accumulatedMoney || 0;
+      this.totalPassiveEarned = data.totalPassiveEarned || 0;
     } catch (e) { /* ignore */ }
+  }
+
+  resetSave() {
+    this.drivers = {};
+    this.bestLapTimes = {};
+    this.accumulatedMoney = 0;
+    this.totalPassiveEarned = 0;
+    localStorage.removeItem(PASSIVE_SAVE_KEY);
   }
 }

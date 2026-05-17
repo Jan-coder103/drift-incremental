@@ -101,7 +101,7 @@ Realistic: Car body is basically a floating physics object above the ground. 4 v
 - HUD shows current track name below best time.
 - Files: updated js/track.js (5 track defs with offset, setDimmed method), js/upgrades.js (unlock logic), js/main.js (all tracks in scene, track switching), index.html (track select overlay, HUD track name).
 
-##Phase 8. UI & Menus (HTML Overlay)
+##Phase 8. UI & Menus (HTML Overlay) — DONE
 - Real-time HUD:
   - Speed, drift angle, current drift points, lap time.
   - Money and XP totals.
@@ -117,8 +117,8 @@ Realistic: Car body is basically a floating physics object above the ground. 4 v
   - Spawn a semi-transparent ghost car that follows the recorded path.
 - Used for passive income calculation (second driver's "skill" = best lap time).
 
-##Phase 10. Polish & "Fun Handling" Focus
-- Body roll/pitch now physics-based from per-corner springs (completed in Phase 2 update).
+##Phase 10. Polish & "Fun Handling" Focus — DONE
+- Body roll/pitch now physics-based from per-corner springs (already completed in Phase 2 update).
 - Tune spring constants so car rolls slightly in turns.
 - Add simple particle effects (dust/smoke) during drift (sprites or point cloud).
 - Low-poly trees, road lines, and a simple sky gradient or cube map.

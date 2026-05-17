@@ -5,6 +5,7 @@ import { DriftScorer } from './drift.js';
 import { RunTracker } from './runner.js';
 import { UpgradeSystem } from './upgrades.js';
 import { PassiveIncome } from './passive.js';
+import { DriftParticles } from './particles.js';
 import GUI from 'lil-gui';
 
 const $speed = document.getElementById('hud-speed');
@@ -39,6 +40,7 @@ const $passiveHud = document.getElementById('hud-passive');
 const $passiveRate = document.getElementById('hud-passive-rate');
 const $passiveAccumulated = document.getElementById('hud-passive-accumulated');
 const $passiveCollect = document.getElementById('hud-passive-collect');
+const $passiveTotal = document.getElementById('hud-passive-total');
 const $trackSelectOverlay = document.getElementById('track-select-overlay');
 const $trackList = document.getElementById('track-list');
 const $trackName = document.getElementById('hud-track-name');
@@ -96,6 +98,7 @@ const driftScorer = new DriftScorer();
 let runTracker = new RunTracker(currentTrack);
 const upgrades = new UpgradeSystem();
 const passive = new PassiveIncome();
+const particles = new DriftParticles(scene);
 
 const allTrackIds = TRACK_DEFS.map(d => d.id);
 
@@ -172,6 +175,19 @@ $passiveCollect.addEventListener('click', collectPassive);
 $trackBtn.addEventListener('click', toggleTrackSelect);
 $trackSelectOverlay.addEventListener('click', (e) => {
   if (e.target === $trackSelectOverlay) toggleTrackSelect();
+});
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if (confirm('Reset ALL progress? This cannot be undone.')) {
+    upgrades.resetSave();
+    passive.resetSave();
+    currentTrack = trackMap['track_1'];
+    runTracker = new RunTracker(currentTrack);
+    loadBestLapTimes();
+    updateTrackDimming();
+    resetRun();
+    if (shopOpen) toggleShop();
+    if (trackSelectOpen) toggleTrackSelect();
+  }
 });
 
 const cameraOffset = new THREE.Vector3(0, 6, -14);
@@ -519,6 +535,7 @@ function updateHUD() {
     const acc = passive.accumulatedMoney;
     $passiveAccumulated.textContent = `$${Math.floor(acc).toLocaleString()}`;
     $passiveCollect.style.display = acc >= 1 ? 'inline-block' : 'none';
+    $passiveTotal.textContent = `Total: $${passive.totalPassiveEarned.toLocaleString()}`;
   } else {
     $passiveHud.classList.remove('active');
   }
@@ -566,6 +583,7 @@ function animate() {
   }
 
   updateCamera(delta);
+  particles.update(delta, car, driftScorer);
   updateHUD();
 
   renderer.render(scene, camera);
