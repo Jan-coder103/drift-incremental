@@ -5,6 +5,7 @@ export class RunTracker {
     this.isFinished = false;
     this.runTime = 0;
     this.bestRunTime = track.bestLapTime || null;
+    this.newBestThisRun = false;
 
     this.startZoneSize = 8;
     this.finishZoneSize = 10;
@@ -66,6 +67,7 @@ export class RunTracker {
         this.bestRunTime = this.runTime;
         this.track.bestLapTime = this.runTime;
         this.track.ghostData = [...this.ghostRecording];
+        this.newBestThisRun = true;
       }
     }
   }
@@ -102,6 +104,7 @@ export class RunTracker {
     this.ghostRecordTimer = 0;
     this.runStartedThisFrame = false;
     this.runFinishedThisFrame = false;
+    this.newBestThisRun = false;
     this.xpEarned = 0;
     this.moneyEarned = 0;
     this.totalDriftAtEnd = 0;

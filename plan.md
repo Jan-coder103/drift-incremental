@@ -110,7 +110,7 @@ Realistic: Car body is basically a floating physics object above the ground. 4 v
 - Passive income display & collect button (or automatic adding).
 - Debug panel toggle (for spring tuning).
 
-##Phase 9. Ghost Driver & Replay System
+##Phase 9. Ghost Driver & Replay System — DONE
 - Record during each lap: array of {time, position, rotation}.
 - Store best lap replay in memory and localStorage.
 - When player races and has a best ghost for that track:

@@ -9,8 +9,8 @@ export class Car {
     this.dampingConstant = 4500;
     this.restLength = 0.7;
 
-    this.lateralDrag = 7000;
-    this.accelerationForce = 9000;
+    this.lateralDrag = 1800;
+    this.accelerationForce = 18000;
     this.brakeForce = 12000;
     this.maxSteerRate = 2.8;
     this.longitudinalDrag = 30;

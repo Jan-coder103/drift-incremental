@@ -6,6 +6,7 @@ import { RunTracker } from './runner.js';
 import { UpgradeSystem } from './upgrades.js';
 import { PassiveIncome } from './passive.js';
 import { DriftParticles } from './particles.js';
+import { GhostCar } from './ghost.js';
 import GUI from 'lil-gui';
 
 const $speed = document.getElementById('hud-speed');
@@ -99,6 +100,7 @@ let runTracker = new RunTracker(currentTrack);
 const upgrades = new UpgradeSystem();
 const passive = new PassiveIncome();
 const particles = new DriftParticles(scene);
+const ghostCar = new GhostCar(scene);
 
 const allTrackIds = TRACK_DEFS.map(d => d.id);
 
@@ -110,6 +112,11 @@ function loadBestLapTimes() {
     }
   }
   runTracker.bestRunTime = currentTrack.bestLapTime || null;
+  loadGhostForTrack();
+}
+function loadGhostForTrack() {
+  const data = passive.getGhostData(currentTrack.id);
+  ghostCar.setData(data);
 }
 loadBestLapTimes();
 
@@ -134,6 +141,7 @@ function resetRun() {
   lastSafeYaw = car.yaw;
   driftScorer.reset();
   runTracker.reset();
+  ghostCar.stop();
   collectPassive();
   $endScreen.classList.remove('show');
 }
@@ -244,6 +252,8 @@ function switchTrack(trackId) {
 
   currentTrack = trackMap[trackId];
   runTracker = new RunTracker(currentTrack);
+  runTracker.bestRunTime = currentTrack.bestLapTime || null;
+  loadGhostForTrack();
   updateTrackDimming();
   resetRun();
   toggleTrackSelect();
@@ -577,10 +587,20 @@ function animate() {
     driftScorer.update(car, delta, hitWall);
     runTracker.update(car, delta, driftScorer.getTotalPoints());
 
+    if (runTracker.runStartedThisFrame) {
+      ghostCar.startPlayback();
+    }
+
     if (runTracker.runFinishedThisFrame) {
       showEndScreen();
+      if (runTracker.newBestThisRun) {
+        passive.setGhostData(currentTrack.id, runTracker.ghostRecording);
+        ghostCar.setData(passive.getGhostData(currentTrack.id));
+      }
     }
   }
+
+  ghostCar.update(delta);
 
   updateCamera(delta);
   particles.update(delta, car, driftScorer);
