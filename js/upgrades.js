@@ -35,6 +35,7 @@ export class UpgradeSystem {
     this.level = 1;
     this.carUpgrades = { xpMultiplier: 0, moneyMultiplier: 0 };
     this.trackUpgrades = {};
+    this.unlockedTracks = ['track_1'];
     this.load();
   }
 
@@ -114,6 +115,39 @@ export class UpgradeSystem {
     return 100 + (this.level - 1) * 75;
   }
 
+  isTrackUnlocked(trackId) {
+    return this.unlockedTracks.includes(trackId);
+  }
+
+  canUnlockTrack(trackId, trackDef) {
+    if (this.isTrackUnlocked(trackId)) return false;
+    if (this.level < trackDef.requiredLevel) return false;
+    if (this.money < trackDef.costToUnlock) return false;
+    return true;
+  }
+
+  unlockTrack(trackId, cost) {
+    if (this.isTrackUnlocked(trackId)) return false;
+    if (this.money < cost) return false;
+    this.money -= cost;
+    this.unlockedTracks.push(trackId);
+    this.save();
+    return true;
+  }
+
+  getTrackUnlockStatus(trackId, trackDef) {
+    if (this.isTrackUnlocked(trackId)) {
+      return { unlocked: true, canUnlock: false, reason: 'Unlocked' };
+    }
+    if (this.level < trackDef.requiredLevel) {
+      return { unlocked: false, canUnlock: false, reason: `Requires Level ${trackDef.requiredLevel}` };
+    }
+    if (this.money < trackDef.costToUnlock) {
+      return { unlocked: false, canUnlock: false, reason: `Requires $${trackDef.costToUnlock.toLocaleString()}` };
+    }
+    return { unlocked: false, canUnlock: true, reason: 'Unlock' };
+  }
+
   getXpProgress() {
     const threshold = this._xpForNextLevel();
     return this.xp / threshold;
@@ -127,10 +161,11 @@ export class UpgradeSystem {
       level: this.level,
       carUpgrades: { ...this.carUpgrades },
       trackUpgrades: JSON.parse(JSON.stringify(this.trackUpgrades)),
+      unlockedTracks: [...this.unlockedTracks],
     };
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-    } catch (e) { /* ignore */ }
+    } catch (e) { }
   }
 
   load() {
@@ -144,7 +179,8 @@ export class UpgradeSystem {
       this.level = data.level || 1;
       if (data.carUpgrades) this.carUpgrades = { ...this.carUpgrades, ...data.carUpgrades };
       if (data.trackUpgrades) this.trackUpgrades = data.trackUpgrades;
-    } catch (e) { /* ignore */ }
+      if (data.unlockedTracks) this.unlockedTracks = data.unlockedTracks;
+    } catch (e) { }
   }
 
   resetSave() {
@@ -154,6 +190,7 @@ export class UpgradeSystem {
     this.level = 1;
     this.carUpgrades = { xpMultiplier: 0, moneyMultiplier: 0 };
     this.trackUpgrades = {};
+    this.unlockedTracks = ['track_1'];
     localStorage.removeItem(SAVE_KEY);
   }
 }

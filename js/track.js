@@ -7,7 +7,9 @@ export const TRACK_DEFS = [
     name: 'Country Road',
     baseMoneyMultiplier: 1.0,
     costToUnlock: 0,
+    requiredLevel: 1,
     trackWidth: 14,
+    offset: [0, 0, 0],
     controlPoints: [
       [0, 0, 0],
       [0, 0, 50],
@@ -28,6 +30,127 @@ export const TRACK_DEFS = [
       [0, 0, 430],
     ],
   },
+  {
+    id: 'track_2',
+    name: 'Mountain Pass',
+    baseMoneyMultiplier: 1.5,
+    costToUnlock: 5000,
+    requiredLevel: 3,
+    trackWidth: 12,
+    offset: [130, 0, 0],
+    controlPoints: [
+      [0, 0, 0],
+      [-10, 0, 30],
+      [-25, 0, 50],
+      [-20, 0, 80],
+      [0, 0, 110],
+      [25, 0, 130],
+      [40, 0, 160],
+      [55, 0, 190],
+      [40, 0, 220],
+      [20, 0, 250],
+      [-5, 0, 280],
+      [-30, 0, 300],
+      [-50, 0, 330],
+      [-35, 0, 360],
+      [-10, 0, 390],
+      [20, 0, 420],
+      [45, 0, 450],
+      [60, 0, 480],
+    ],
+  },
+  {
+    id: 'track_3',
+    name: 'Coastal Highway',
+    baseMoneyMultiplier: 2.0,
+    costToUnlock: 15000,
+    requiredLevel: 6,
+    trackWidth: 10,
+    offset: [300, 0, 0],
+    controlPoints: [
+      [0, 0, 0],
+      [30, 0, 20],
+      [60, 0, 40],
+      [80, 0, 70],
+      [70, 0, 110],
+      [50, 0, 150],
+      [25, 0, 190],
+      [0, 0, 230],
+      [-30, 0, 260],
+      [-55, 0, 300],
+      [-70, 0, 340],
+      [-55, 0, 380],
+      [-25, 0, 420],
+      [10, 0, 450],
+      [40, 0, 490],
+      [60, 0, 530],
+      [75, 0, 570],
+      [80, 0, 610],
+    ],
+  },
+  {
+    id: 'track_4',
+    name: 'Desert Canyon',
+    baseMoneyMultiplier: 3.0,
+    costToUnlock: 40000,
+    requiredLevel: 10,
+    trackWidth: 9,
+    offset: [510, 0, 0],
+    controlPoints: [
+      [0, 0, 0],
+      [-20, 0, 40],
+      [-45, 0, 80],
+      [-60, 0, 120],
+      [-55, 0, 160],
+      [-35, 0, 200],
+      [-10, 0, 240],
+      [20, 0, 270],
+      [50, 0, 290],
+      [75, 0, 310],
+      [90, 0, 340],
+      [85, 0, 380],
+      [60, 0, 420],
+      [30, 0, 450],
+      [-10, 0, 480],
+      [-45, 0, 510],
+      [-70, 0, 540],
+      [-80, 0, 580],
+      [-70, 0, 620],
+      [-40, 0, 660],
+    ],
+  },
+  {
+    id: 'track_5',
+    name: 'Arctic Circuit',
+    baseMoneyMultiplier: 4.5,
+    costToUnlock: 100000,
+    requiredLevel: 15,
+    trackWidth: 8,
+    offset: [750, 0, 0],
+    controlPoints: [
+      [0, 0, 0],
+      [40, 0, 25],
+      [75, 0, 60],
+      [90, 0, 100],
+      [80, 0, 140],
+      [55, 0, 180],
+      [20, 0, 210],
+      [-20, 0, 235],
+      [-55, 0, 250],
+      [-85, 0, 265],
+      [-100, 0, 300],
+      [-95, 0, 340],
+      [-75, 0, 380],
+      [-45, 0, 415],
+      [-10, 0, 450],
+      [25, 0, 480],
+      [55, 0, 515],
+      [70, 0, 555],
+      [75, 0, 600],
+      [60, 0, 640],
+      [30, 0, 675],
+    ],
+  },
 ];
 
 export class Track {
@@ -39,9 +162,11 @@ export class Track {
     this.trackWidth = def.trackWidth || 14;
     this.bestLapTime = null;
     this.ghostData = null;
+    this.isDimmed = false;
 
+    const off = def.offset || [0, 0, 0];
     this.curve = new THREE.CatmullRomCurve3(
-      def.controlPoints.map(p => new THREE.Vector3(p[0], p[1], p[2])),
+      def.controlPoints.map(p => new THREE.Vector3(p[0] + off[0], p[1] + off[1], p[2] + off[2])),
       false
     );
 
@@ -432,6 +557,29 @@ export class Track {
 
   getTrackLength() {
     return this.curve.getLength();
+  }
+
+  setDimmed(dimmed) {
+    this.isDimmed = dimmed;
+    const opacity = dimmed ? 0.3 : 1.0;
+    for (const m of this.meshes) {
+      if (m.material) {
+        if (Array.isArray(m.material)) {
+          m.material.forEach(mat => { mat.transparent = true; mat.opacity = opacity; });
+        } else {
+          m.material.transparent = true;
+          m.material.opacity = opacity;
+        }
+      }
+    }
+    for (const t of this.treeMeshes) {
+      t.traverse(child => {
+        if (child.isMesh && child.material) {
+          child.material.transparent = true;
+          child.material.opacity = opacity;
+        }
+      });
+    }
   }
 
   dispose(scene) {

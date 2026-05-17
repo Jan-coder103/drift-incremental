@@ -39,6 +39,10 @@ const $passiveHud = document.getElementById('hud-passive');
 const $passiveRate = document.getElementById('hud-passive-rate');
 const $passiveAccumulated = document.getElementById('hud-passive-accumulated');
 const $passiveCollect = document.getElementById('hud-passive-collect');
+const $trackSelectOverlay = document.getElementById('track-select-overlay');
+const $trackList = document.getElementById('track-list');
+const $trackName = document.getElementById('hud-track-name');
+const $trackBtn = document.getElementById('track-btn');
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -49,9 +53,9 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x87ceeb, 120, 400);
+scene.fog = new THREE.Fog(0x87ceeb, 200, 900);
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1200);
 
 const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
 scene.add(ambientLight);
@@ -62,14 +66,14 @@ directionalLight.castShadow = true;
 directionalLight.shadow.mapSize.width = 2048;
 directionalLight.shadow.mapSize.height = 2048;
 directionalLight.shadow.camera.near = 0.5;
-directionalLight.shadow.camera.far = 500;
-directionalLight.shadow.camera.left = -100;
-directionalLight.shadow.camera.right = 100;
-directionalLight.shadow.camera.top = 100;
-directionalLight.shadow.camera.bottom = -100;
+directionalLight.shadow.camera.far = 1200;
+directionalLight.shadow.camera.left = -200;
+directionalLight.shadow.camera.right = 200;
+directionalLight.shadow.camera.top = 200;
+directionalLight.shadow.camera.bottom = -200;
 scene.add(directionalLight);
 
-const groundGeometry = new THREE.PlaneGeometry(600, 600);
+const groundGeometry = new THREE.PlaneGeometry(1400, 900);
 const groundMaterial = new THREE.MeshStandardMaterial({
   color: 0x4a8c3f,
   flatShading: true,
@@ -78,24 +82,43 @@ const groundMaterial = new THREE.MeshStandardMaterial({
 });
 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
 ground.rotation.x = -Math.PI / 2;
+ground.position.set(420, -0.05, 340);
 ground.receiveShadow = true;
 scene.add(ground);
 
-const currentTrack = new Track(scene, TRACK_DEFS[0]);
+const allTracks = TRACK_DEFS.map(def => new Track(scene, def));
+const trackMap = {};
+for (const t of allTracks) trackMap[t.id] = t;
+
+let currentTrack = trackMap['track_1'];
 const car = new Car(scene);
 const driftScorer = new DriftScorer();
-const runTracker = new RunTracker(currentTrack);
+let runTracker = new RunTracker(currentTrack);
 const upgrades = new UpgradeSystem();
 const passive = new PassiveIncome();
 
 const allTrackIds = TRACK_DEFS.map(d => d.id);
 
-if (passive.getBestLapTime(currentTrack.id) !== null) {
-  runTracker.bestRunTime = passive.getBestLapTime(currentTrack.id);
-  currentTrack.bestLapTime = passive.getBestLapTime(currentTrack.id);
+function loadBestLapTimes() {
+  for (const t of allTracks) {
+    const best = passive.getBestLapTime(t.id);
+    if (best !== null) {
+      t.bestLapTime = best;
+    }
+  }
+  runTracker.bestRunTime = currentTrack.bestLapTime || null;
 }
+loadBestLapTimes();
+
+function updateTrackDimming() {
+  for (const t of allTracks) {
+    t.setDimmed(t !== currentTrack);
+  }
+}
+updateTrackDimming();
 
 let shopOpen = false;
+let trackSelectOpen = false;
 let lastEndXp = 0;
 let lastEndMoney = 0;
 
@@ -133,6 +156,11 @@ window.addEventListener('keydown', (e) => {
     toggleShop();
     return;
   }
+  if (e.code === 'KeyT') {
+    e.preventDefault();
+    toggleTrackSelect();
+    return;
+  }
   keys[e.code] = true;
 });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -141,6 +169,10 @@ $restartBtn.addEventListener('click', resetRun);
 $shopBtn.addEventListener('click', toggleShop);
 $shopCloseBtn.addEventListener('click', toggleShop);
 $passiveCollect.addEventListener('click', collectPassive);
+$trackBtn.addEventListener('click', toggleTrackSelect);
+$trackSelectOverlay.addEventListener('click', (e) => {
+  if (e.target === $trackSelectOverlay) toggleTrackSelect();
+});
 
 const cameraOffset = new THREE.Vector3(0, 6, -14);
 const cameraLookOffset = new THREE.Vector3(0, 1, 0);
@@ -177,6 +209,88 @@ function toggleShop() {
     $shopOverlay.classList.add('show');
   } else {
     $shopOverlay.classList.remove('show');
+  }
+}
+
+function toggleTrackSelect() {
+  trackSelectOpen = !trackSelectOpen;
+  if (trackSelectOpen) {
+    renderTrackSelect();
+    $trackSelectOverlay.classList.add('show');
+  } else {
+    $trackSelectOverlay.classList.remove('show');
+  }
+}
+
+function switchTrack(trackId) {
+  const trackDef = TRACK_DEFS.find(d => d.id === trackId);
+  if (!trackDef || !upgrades.isTrackUnlocked(trackId)) return;
+
+  currentTrack = trackMap[trackId];
+  runTracker = new RunTracker(currentTrack);
+  updateTrackDimming();
+  resetRun();
+  toggleTrackSelect();
+}
+
+function renderTrackSelect() {
+  $trackList.innerHTML = '';
+
+  const unlockedSection = document.createElement('div');
+  unlockedSection.innerHTML = '<h3>Available Tracks</h3>';
+  $trackList.appendChild(unlockedSection);
+
+  const lockedSection = document.createElement('div');
+  lockedSection.innerHTML = '<h3>Locked Tracks</h3>';
+  $trackList.appendChild(lockedSection);
+
+  for (const def of TRACK_DEFS) {
+    const isUnlocked = upgrades.isTrackUnlocked(def.id);
+    const isActive = currentTrack.id === def.id;
+    const status = upgrades.getTrackUnlockStatus(def.id, def);
+
+    const item = document.createElement('div');
+    item.className = `track-item ${isUnlocked ? '' : 'locked'} ${isActive ? 'active' : ''}`;
+
+    const details = `Lvl ${def.requiredLevel} req • x${def.baseMoneyMultiplier.toFixed(1)} earnings`;
+    const statusText = status.unlocked ? 'Unlocked' : status.reason;
+
+    item.innerHTML = `
+      <div class="track-item-info">
+        <div class="track-item-name">${def.name}</div>
+        <div class="track-item-details">${details}</div>
+      </div>
+      <div class="track-item-action">
+        <span class="track-item-status ${status.unlocked ? 'unlocked' : (status.canUnlock ? 'can-unlock' : '')}">${statusText}</span>
+        ${isActive ? '' : `
+          <button class="track-select-btn ${status.canUnlock ? 'unlock' : ''}" 
+                  data-track="${def.id}" 
+                  ${!isUnlocked && !status.canUnlock ? 'disabled' : ''}>
+            ${status.canUnlock ? `$${def.costToUnlock.toLocaleString()}` : 'Select'}
+          </button>
+        `}
+      </div>
+    `;
+
+    if (isUnlocked) {
+      unlockedSection.appendChild(item);
+    } else {
+      lockedSection.appendChild(item);
+    }
+
+    const btn = item.querySelector('.track-select-btn');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        if (status.canUnlock) {
+          if (upgrades.unlockTrack(def.id, def.costToUnlock)) {
+            updateTrackDimming();
+            renderTrackSelect();
+          }
+        } else if (isUnlocked) {
+          switchTrack(def.id);
+        }
+      });
+    }
   }
 }
 
@@ -255,6 +369,7 @@ function renderShop() {
 
   $shopDrivers.innerHTML = '';
   for (const def of TRACK_DEFS) {
+    if (!upgrades.isTrackUnlocked(def.id)) continue;
     const hasDriver = passive.hasDriver(def.id);
     const cost = passive.getDriverCost(def.id);
     const canAfford = upgrades.money >= cost;
@@ -301,7 +416,7 @@ function renderShop() {
 }
 
 function updateInput() {
-  if (runTracker.isFinished || shopOpen) return;
+  if (runTracker.isFinished || shopOpen || trackSelectOpen) return;
 
   car.throttle = (keys['KeyW'] || keys['ArrowUp']) ? 1 : 0;
   car.brake = (keys['KeyS'] || keys['ArrowDown']) ? 1 : 0;
@@ -329,21 +444,28 @@ function updateCamera(dt) {
   );
   camera.lookAt(lookTarget);
 
-  directionalLight.position.set(car.position.x + 50, 80, car.position.z + 30);
+  directionalLight.position.set(car.position.x + 50, 120, car.position.z + 30);
   directionalLight.target.position.copy(car.position);
   directionalLight.target.updateMatrixWorld();
 }
 
 function updateCollision() {
   hitWall = false;
-  if (currentTrack.isOnTrack(car.position)) {
+  const onActive = currentTrack.isOnTrack(car.position);
+  if (onActive) {
     lastSafePos.copy(car.position);
     lastSafeYaw = car.yaw;
   } else {
-    hitWall = true;
-    car.position.copy(lastSafePos);
-    car.yaw = lastSafeYaw;
-    car.velocity.multiplyScalar(0.25);
+    const onAny = allTracks.some(t => t.isOnTrack(car.position));
+    if (onAny) {
+      lastSafePos.copy(car.position);
+      lastSafeYaw = car.yaw;
+    } else {
+      hitWall = true;
+      car.position.copy(lastSafePos);
+      car.yaw = lastSafeYaw;
+      car.velocity.multiplyScalar(0.25);
+    }
   }
 }
 
@@ -356,6 +478,8 @@ function updateHUD() {
     : '0:00.000';
 
   $best.textContent = `Best: ${runTracker.getFormattedBestTime()}`;
+
+  $trackName.textContent = currentTrack.name;
 
   const pct = Math.round(runTracker.trackProgress * 100);
   $progress.textContent = `${pct}%`;

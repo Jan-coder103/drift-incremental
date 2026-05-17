@@ -83,13 +83,23 @@ Realistic: Car body is basically a floating physics object above the ground. 4 v
 - Auto-saves accumulated money every 5 seconds.
 - Files: js/passive.js (PassiveIncome class), updated js/main.js, updated index.html (HUD + shop section).
 
-##Phase 7. Track Unlock Progression
-- Start with Track 1 only.
-- To unlock Track N+1, player must:
-  - Reach a minimum XP level OR total earnings.
-  - Pay a one-time unlock cost (money).
-- Tracks have increasing base multipliers and visual complexity.
-- Track select screen (simple buttons or 3D menu).
+##Phase 7. Track Unlock Progression — DONE
+- Start with Track 1 only (Country Road).
+- 5 tracks total, each with unique layout, increasing base money multiplier, and visual complexity:
+  - Track 1: Country Road (x1.0, free, lvl 1)
+  - Track 2: Mountain Pass (x1.5, $5,000, lvl 3)
+  - Track 3: Coastal Highway (x2.0, $15,000, lvl 6)
+  - Track 4: Desert Canyon (x3.0, $40,000, lvl 10)
+  - Track 5: Arctic Circuit (x4.5, $100,000, lvl 15)
+- To unlock Track N+1, player must reach required level AND pay unlock cost.
+- Tracks arranged side-by-side on the map (offset in X), all visible simultaneously.
+- Active track is full opacity; inactive tracks are dimmed (30% opacity).
+- Track select screen (press T): lists available and locked tracks with unlock/select buttons.
+- Unlock state persisted in localStorage via UpgradeSystem (unlockedTracks array).
+- New RunTracker created on track switch (fixes stale track reference bug).
+- Ground plane, fog distance, shadow camera, and camera far plane scaled for the larger scene.
+- HUD shows current track name below best time.
+- Files: updated js/track.js (5 track defs with offset, setDimmed method), js/upgrades.js (unlock logic), js/main.js (all tracks in scene, track switching), index.html (track select overlay, HUD track name).
 
 ##Phase 8. UI & Menus (HTML Overlay)
 - Real-time HUD:
