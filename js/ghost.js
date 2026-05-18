@@ -15,13 +15,16 @@ export class GhostCar {
     this.group = new THREE.Group();
 
     const bodyMat = new THREE.MeshStandardMaterial({
-      color: 0xff8844,
+      color: 0x00eeff,
       flatShading: true,
-      roughness: 0.5,
-      metalness: 0.3,
+      roughness: 0.3,
+      metalness: 0.5,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.65,
       depthWrite: false,
+      depthTest: false,
+      emissive: 0x004455,
+      emissiveIntensity: 0.4,
     });
 
     const bodyGeo = new THREE.BoxGeometry(1.8, 0.5, 4.2);
@@ -39,12 +42,13 @@ export class GhostCar {
 
     const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.2, 8);
     const wheelMat = new THREE.MeshStandardMaterial({
-      color: 0x442200,
+      color: 0x006677,
       flatShading: true,
       roughness: 0.9,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.65,
       depthWrite: false,
+      depthTest: false,
     });
 
     const wheelPositions = [
@@ -102,6 +106,28 @@ export class GhostCar {
       return;
     }
 
+    if (data.length === 1) {
+      const t = data[0];
+      const px = t.position.x ?? t.position[0];
+      const py = t.position.y ?? t.position[1];
+      const pz = t.position.z ?? t.position[2];
+      this.group.position.set(px, py, pz);
+      this.group.rotation.set(0, t.rotation, 0);
+      this.group.visible = true;
+      return;
+    }
+
+    if (this.playbackTime < data[0].time) {
+      const t = data[0];
+      const px = t.position.x ?? t.position[0];
+      const py = t.position.y ?? t.position[1];
+      const pz = t.position.z ?? t.position[2];
+      this.group.position.set(px, py, pz);
+      this.group.rotation.set(0, t.rotation, 0);
+      this.group.visible = true;
+      return;
+    }
+
     let a = 0;
     let b = 1;
     for (let i = 0; i < data.length - 1; i++) {
@@ -114,7 +140,8 @@ export class GhostCar {
 
     const tA = data[a];
     const tB = data[b];
-    const alpha = (this.playbackTime - tA.time) / (tB.time - tA.time);
+    const timeDiff = tB.time - tA.time;
+    const alpha = timeDiff > 0 ? (this.playbackTime - tA.time) / timeDiff : 0;
 
     const pAx = tA.position.x ?? tA.position[0];
     const pAy = tA.position.y ?? tA.position[1];
