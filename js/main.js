@@ -95,6 +95,7 @@ for (const t of allTracks) trackMap[t.id] = t;
 
 let currentTrack = trackMap['track_1'];
 const car = new Car(scene);
+car.loadGLBModel('assets/cars/van.glb', 'assets/cars/Textures/colormap.png');
 const driftScorer = new DriftScorer();
 let runTracker = new RunTracker(currentTrack);
 const upgrades = new UpgradeSystem();
@@ -170,6 +171,10 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyT') {
     e.preventDefault();
     toggleTrackSelect();
+    return;
+  }
+  if (e.code === 'KeyC') {
+    car.toggleCarModel();
     return;
   }
   keys[e.code] = true;

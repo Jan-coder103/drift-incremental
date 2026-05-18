@@ -401,19 +401,26 @@ export class Track {
 
   _placeTrees(scene) {
     const loader = new GLTFLoader();
+    const textureLoader = new THREE.TextureLoader();
     const treeDistance = this.trackWidth / 2 + 8;
+
+    const texPromise = new Promise(resolve => {
+      textureLoader.load('assets/trees/Textures/colormap.png', resolve, undefined, () => resolve(null));
+    });
 
     Promise.all([
       this._loadTree(loader, 'assets/trees/tree-large.glb'),
       this._loadTree(loader, 'assets/trees/tree-small.glb'),
-    ]).then((models) => {
-      const valid = models.filter(m => m !== null);
-      if (valid.length === 0) {
+      texPromise,
+    ]).then((results) => {
+      const models = results.slice(0, 2).filter(m => m !== null);
+      const texture = results[2];
+      if (models.length === 0) {
         this._placeProceduralTrees(scene, treeDistance);
         return;
       }
-      valid.forEach(m => this._flattenModel(m));
-      this._scatterModels(scene, valid, treeDistance);
+      models.forEach(m => this._flattenModel(m, texture));
+      this._scatterModels(scene, models, treeDistance);
     });
   }
 
@@ -423,14 +430,18 @@ export class Track {
     });
   }
 
-  _flattenModel(model) {
+  _flattenModel(model, texture) {
     model.traverse(child => {
       if (child.isMesh) {
-        child.material = new THREE.MeshStandardMaterial({
-          color: child.material.color ? child.material.color.clone() : new THREE.Color(0x2d5a1e),
-          flatShading: true,
-          roughness: 0.85,
-        });
+        const opts = { flatShading: true, roughness: 0.85 };
+        if (texture) {
+          opts.map = texture;
+        } else if (child.material && child.material.color) {
+          opts.color = child.material.color.clone();
+        } else {
+          opts.color = new THREE.Color(0x2d5a1e);
+        }
+        child.material = new THREE.MeshStandardMaterial(opts);
         child.castShadow = true;
       }
     });
@@ -451,7 +462,7 @@ export class Track {
         const oz = right.z * side * dist + (t.z * jitter);
 
         const tree = models[Math.floor(seeded() * models.length)].clone();
-        const s = 0.7 + seeded() * 1.0;
+        const s = (0.7 + seeded() * 1.0) * 10;
         tree.scale.set(s, s, s);
         tree.position.set(p.x + ox, 0, p.z + oz);
         tree.rotation.y = seeded() * Math.PI * 2;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 export class Car {
   constructor(scene) {
@@ -40,29 +41,18 @@ export class Car {
 
     this.group = new THREE.Group();
 
-    const bodyGeometry = new THREE.BoxGeometry(1.8, 0.5, 4.2);
-    const bodyMaterial = new THREE.MeshStandardMaterial({
-      color: 0xaaaaaa,
-      flatShading: true,
-      roughness: 0.5,
-      metalness: 0.3,
-    });
-    this.bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    this.bodyMesh = new THREE.Group();
     this.bodyMesh.position.y = 0.15;
-    this.bodyMesh.castShadow = true;
+    this._buildProceduralBody();
     this.group.add(this.bodyMesh);
 
-    const roofGeometry = new THREE.BoxGeometry(1.6, 0.4, 2.0);
-    const roofMaterial = new THREE.MeshStandardMaterial({
-      color: 0x999999,
-      flatShading: true,
-      roughness: 0.5,
-      metalness: 0.3,
-    });
-    this.roofMesh = new THREE.Mesh(roofGeometry, roofMaterial);
-    this.roofMesh.position.set(0, 0.6, -0.3);
-    this.roofMesh.castShadow = true;
-    this.bodyMesh.add(this.roofMesh);
+    this.glbGroup = new THREE.Group();
+    this.glbGroup.position.y = 0.15;
+    this.glbGroup.visible = false;
+    this.group.add(this.glbGroup);
+
+    this.usingGLB = false;
+    this._glbLoaded = false;
 
     const wheelGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.2, 8);
     const wheelMaterial = new THREE.MeshStandardMaterial({
@@ -90,6 +80,141 @@ export class Car {
     }
 
     scene.add(this.group);
+  }
+
+  _buildProceduralBody() {
+    const bodyColor = 0xcc2222;
+    const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor, flatShading: true, roughness: 0.5, metalness: 0.3 });
+
+    const mainBody = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.35, 4.2), bodyMat);
+    mainBody.castShadow = true;
+    this.bodyMesh.add(mainBody);
+
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 1.7), bodyMat.clone());
+    cabin.position.set(0, 0.4, -0.15);
+    cabin.castShadow = true;
+    this.bodyMesh.add(cabin);
+
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x88ccff, flatShading: true, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.5 });
+    const windshield = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.4, 0.05), glassMat);
+    windshield.position.set(0, 0.4, 0.82);
+    windshield.rotation.x = -0.25;
+    this.bodyMesh.add(windshield);
+
+    const rearWindow = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.35, 0.05), glassMat.clone());
+    rearWindow.position.set(0, 0.4, -1.0);
+    rearWindow.rotation.x = 0.2;
+    this.bodyMesh.add(rearWindow);
+
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x222222, flatShading: true, roughness: 0.9 });
+
+    const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.15, 0.2), darkMat);
+    frontBumper.position.set(0, -0.1, 2.1);
+    this.bodyMesh.add(frontBumper);
+
+    const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.15, 0.2), darkMat.clone());
+    rearBumper.position.set(0, -0.1, -2.1);
+    this.bodyMesh.add(rearBumper);
+
+    const hlMat = new THREE.MeshStandardMaterial({ color: 0xffffcc, flatShading: true, emissive: 0xffffaa, emissiveIntensity: 0.3 });
+    const hlGeo = new THREE.BoxGeometry(0.3, 0.12, 0.05);
+    const hlL = new THREE.Mesh(hlGeo, hlMat);
+    hlL.position.set(-0.6, 0.05, 2.12);
+    this.bodyMesh.add(hlL);
+    const hlR = new THREE.Mesh(hlGeo, hlMat.clone());
+    hlR.position.set(0.6, 0.05, 2.12);
+    this.bodyMesh.add(hlR);
+
+    const tlMat = new THREE.MeshStandardMaterial({ color: 0xff2222, flatShading: true, emissive: 0xff1111, emissiveIntensity: 0.3 });
+    const tlGeo = new THREE.BoxGeometry(0.3, 0.1, 0.05);
+    const tlL = new THREE.Mesh(tlGeo, tlMat);
+    tlL.position.set(-0.6, 0.05, -2.12);
+    this.bodyMesh.add(tlL);
+    const tlR = new THREE.Mesh(tlGeo, tlMat.clone());
+    tlR.position.set(0.6, 0.05, -2.12);
+    this.bodyMesh.add(tlR);
+
+    const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.04, 0.25), darkMat.clone());
+    spoiler.position.set(0, 0.7, -1.8);
+    this.bodyMesh.add(spoiler);
+
+    const supGeo = new THREE.BoxGeometry(0.06, 0.18, 0.06);
+    const supL = new THREE.Mesh(supGeo, darkMat.clone());
+    supL.position.set(-0.55, 0.6, -1.8);
+    this.bodyMesh.add(supL);
+    const supR = new THREE.Mesh(supGeo, darkMat.clone());
+    supR.position.set(0.55, 0.6, -1.8);
+    this.bodyMesh.add(supR);
+
+    const skirtMat = new THREE.MeshStandardMaterial({ color: 0x111111, flatShading: true, roughness: 0.9 });
+    const skirtGeo = new THREE.BoxGeometry(0.08, 0.12, 3.8);
+    const skirtL = new THREE.Mesh(skirtGeo, skirtMat);
+    skirtL.position.set(-0.88, -0.12, 0);
+    this.bodyMesh.add(skirtL);
+    const skirtR = new THREE.Mesh(skirtGeo, skirtMat.clone());
+    skirtR.position.set(0.88, -0.12, 0);
+    this.bodyMesh.add(skirtR);
+  }
+
+  loadGLBModel(url, textureUrl) {
+    if (this._glbLoaded) return;
+    const loader = new GLTFLoader();
+    const textureLoader = new THREE.TextureLoader();
+
+    const texPromise = new Promise(resolve => {
+      textureLoader.load(textureUrl, resolve, undefined, () => resolve(null));
+    });
+
+    Promise.all([
+      new Promise((resolve, reject) => {
+        loader.load(url, resolve, undefined, reject);
+      }),
+      texPromise,
+    ]).then(([gltf, texture]) => {
+      const model = gltf.scene;
+
+      const box = new THREE.Box3().setFromObject(model);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+
+      const scaleX = 1.8 / size.x;
+      const scaleZ = 4.2 / size.z;
+      const scale = Math.min(scaleX, scaleZ);
+      model.scale.set(scale, scale, scale);
+
+      const scaledBox = new THREE.Box3().setFromObject(model);
+      const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+      model.position.x -= scaledCenter.x;
+      model.position.z -= scaledCenter.z;
+      model.position.y -= scaledBox.min.y;
+
+      model.traverse(child => {
+        if (child.isMesh) {
+          if (texture) {
+            child.material = new THREE.MeshStandardMaterial({
+              map: texture,
+              flatShading: true,
+              roughness: 0.6,
+              metalness: 0.2,
+            });
+          } else if (child.material) {
+            child.material.flatShading = true;
+          }
+          child.castShadow = true;
+        }
+      });
+
+      this.glbGroup.add(model);
+      this._glbLoaded = true;
+    }).catch(() => {});
+  }
+
+  toggleCarModel() {
+    if (!this._glbLoaded) return;
+    this.usingGLB = !this.usingGLB;
+    this.bodyMesh.visible = !this.usingGLB;
+    this.glbGroup.visible = this.usingGLB;
+    for (const w of this.wheels) w.visible = !this.usingGLB;
   }
 
   getForward() {
@@ -215,6 +340,7 @@ export class Car {
     this.group.position.copy(this.position);
     this.group.rotation.set(0, this.yaw, 0);
     this.bodyMesh.rotation.set(this.visualPitch, 0, this.visualRoll);
+    this.glbGroup.rotation.set(this.visualPitch, 0, this.visualRoll);
 
     this.updateWheelVisuals();
   }
