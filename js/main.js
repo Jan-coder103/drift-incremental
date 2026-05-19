@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Car } from './car.js';
-import { Track, TRACK_DEFS } from './track.js';
+import { Track, TRACK_DEFS, loadCustomTracks, assignCustomOffsets } from './track.js';
 import { DriftScorer } from './drift.js';
 import { RunTracker } from './runner.js';
 import { UpgradeSystem } from './upgrades.js';
@@ -8,6 +8,13 @@ import { PassiveIncome } from './passive.js';
 import { DriftParticles } from './particles.js';
 import { GhostCar } from './ghost.js';
 import GUI from 'lil-gui';
+
+(async function init() {
+  const customDefs = await loadCustomTracks();
+  if (customDefs.length > 0) {
+    assignCustomOffsets(customDefs, TRACK_DEFS);
+  }
+  const ALL_DEFS = [...TRACK_DEFS, ...customDefs];
 
 const $speed = document.getElementById('hud-speed');
 const $timeValue = document.getElementById('hud-time-value');
@@ -89,7 +96,7 @@ ground.position.set(420, -0.05, 340);
 ground.receiveShadow = true;
 scene.add(ground);
 
-const allTracks = TRACK_DEFS.map(def => new Track(scene, def));
+const allTracks = ALL_DEFS.map(def => new Track(scene, def));
 const trackMap = {};
 for (const t of allTracks) trackMap[t.id] = t;
 
@@ -103,7 +110,7 @@ const passive = new PassiveIncome();
 const particles = new DriftParticles(scene);
 const ghostCar = new GhostCar(scene);
 
-const allTrackIds = TRACK_DEFS.map(d => d.id);
+const allTrackIds = ALL_DEFS.map(d => d.id);
 
 function loadBestLapTimes() {
   for (const t of allTracks) {
@@ -252,7 +259,7 @@ function toggleTrackSelect() {
 }
 
 function switchTrack(trackId) {
-  const trackDef = TRACK_DEFS.find(d => d.id === trackId);
+  const trackDef = ALL_DEFS.find(d => d.id === trackId);
   if (!trackDef || !upgrades.isTrackUnlocked(trackId)) return;
 
   currentTrack = trackMap[trackId];
@@ -275,7 +282,7 @@ function renderTrackSelect() {
   lockedSection.innerHTML = '<h3>Locked Tracks</h3>';
   $trackList.appendChild(lockedSection);
 
-  for (const def of TRACK_DEFS) {
+  for (const def of ALL_DEFS) {
     const isUnlocked = upgrades.isTrackUnlocked(def.id);
     const isActive = currentTrack.id === def.id;
     const status = upgrades.getTrackUnlockStatus(def.id, def);
@@ -399,7 +406,7 @@ function renderShop() {
   });
 
   $shopDrivers.innerHTML = '';
-  for (const def of TRACK_DEFS) {
+  for (const def of ALL_DEFS) {
     if (!upgrades.isTrackUnlocked(def.id)) continue;
     const hasDriver = passive.hasDriver(def.id);
     const cost = passive.getDriverCost(def.id);
@@ -621,3 +628,5 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+})();

@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Track Editor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden}
+body{font-family:'Segoe UI',system-ui,sans-serif;color:#fff;background:#0a0a14}
+#canvas-container{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
+#toolbar{position:fixed;top:0;left:0;right:0;height:44px;background:rgba(16,16,24,.95);border-bottom:1px solid rgba(255,255,255,.1);display:flex;align-items:center;padding:0 12px;gap:6px;z-index:10}
+.tb{padding:6px 12px;font-size:12px;font-weight:600;background:rgba(255,255,255,.08);color:#ccc;border:1px solid rgba(255,255,255,.12);border-radius:4px;cursor:pointer;white-space:nowrap;transition:all .15s}
+.tb:hover{background:rgba(255,255,255,.15);color:#fff}
+.tsep{width:1px;height:24px;background:rgba(255,255,255,.1);margin:0 4px}
+#sidebar{position:fixed;top:44px;left:0;width:48px;bottom:0;background:rgba(16,16,24,.95);border-right:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;align-items:center;padding:8px 4px;gap:4px;z-index:10}
+.tool-btn{width:40px;height:40px;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:rgba(255,255,255,.05);color:#aaa;cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.tool-btn:hover{background:rgba(255,255,255,.12);color:#fff}
+.tool-btn.active{background:rgba(255,204,0,.2);border-color:rgba(255,204,0,.5);color:#ffcc00}
+#properties{position:fixed;top:44px;right:0;width:260px;bottom:0;background:rgba(16,16,24,.95);border-left:1px solid rgba(255,255,255,.1);padding:16px;z-index:10;overflow-y:auto}
+.ps{margin-bottom:16px}
+.pst{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;opacity:.4;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,.06)}
+.pr{margin-bottom:8px}
+.pl{display:block;font-size:11px;opacity:.5;margin-bottom:3px}
+.pi{width:100%;padding:6px 8px;font-size:13px;background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.1);border-radius:4px;outline:none;transition:border-color .15s}
+.pi:focus{border-color:rgba(255,204,0,.5)}
+.prr{display:flex;align-items:center;gap:8px}
+.prr input[type=range]{flex:1}
+.prv{font-size:13px;font-weight:600;min-width:24px;text-align:right}
+#statusbar{position:fixed;bottom:0;left:48px;right:260px;height:24px;background:rgba(16,16,24,.9);border-top:1px solid rgba(255,255,255,.06);display:flex;align-items:center;padding:0 12px;font-size:11px;opacity:.5;gap:16px;z-index:10}
+#modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);align-items:center;justify-content:center;z-index:100}
+#modal-overlay.show{display:flex}
+#modal{background:rgba(20,20,30,.98);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:20px;width:560px;max-height:80vh}
+#modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+#modal-header h3{font-size:18px;font-weight:700;color:#ffcc00}
+#modal-close{background:none;border:none;color:#aaa;font-size:18px;cursor:pointer;padding:4px 8px}
+#modal-close:hover{color:#fff}
+#modal-textarea{width:100%;height:300px;padding:10px;font-family:monospace;font-size:12px;background:rgba(0,0,0,.3);color:#ddd;border:1px solid rgba(255,255,255,.1);border-radius:6px;resize:vertical;outline:none}
+#modal-buttons{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.mb{padding:8px 16px;font-size:13px;font-weight:600;border:1px solid rgba(255,255,255,.15);border-radius:6px;cursor:pointer;transition:all .15s}
+.mb.primary{background:#ffcc00;color:#1a1a2e;border-color:#ffcc00}
+.mb.primary:hover{background:#ffdd55}
+.mb.secondary{background:rgba(255,255,255,.08);color:#ccc}
+.mb.secondary:hover{background:rgba(255,255,255,.15)}
+.mb.hidden{display:none}
+#toast{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);padding:8px 20px;font-size:13px;font-weight:600;background:rgba(255,204,0,.9);color:#1a1a2e;border-radius:6px;opacity:0;transition:opacity .3s;z-index:200;pointer-events:none}
+#toast.show{opacity:1}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="canvas-container"></div>
+
+<div id="toolbar">
+  <button class="tb" id="btn-new">New</button>
+  <span class="tsep"></span>
+  <button class="tb" id="btn-import">Import</button>
+  <button class="tb" id="btn-import-file">File</button>
+  <button class="tb" id="btn-export">Export</button>
+  <span class="tsep"></span>
+  <button class="tb" id="btn-undo" title="Ctrl+Z">Undo</button>
+  <button class="tb" id="btn-redo" title="Ctrl+Shift+Z">Redo</button>
+  <span class="tsep"></span>
+  <button class="tb" id="btn-grid">Grid: ON</button>
+  <button class="tb" id="btn-snap">Snap: OFF</button>
+  <span style="flex:1"></span>
+  <span id="toolbar-info" style="font-size:12px;opacity:.6">Points: 0</span>
+</div>
+
+<div id="sidebar">
+  <button class="tool-btn" data-tool="select" title="Select/Move (1)">&#x2195;</button>
+  <button class="tool-btn active" data-tool="add" title="Add Point (2)">+</button>
+  <button class="tool-btn" data-tool="treeZone" title="Tree Zone (3)">&#x25A1;</button>
+  <button class="tool-btn" data-tool="delete" title="Delete (4)">&#x2715;</button>
+</div>
+
+<div id="properties">
+  <div class="ps">
+    <div class="pst">Track Info</div>
+    <div class="pr"><label class="pl">Track ID</label><input id="prop-id" class="pi" type="text" value="track_custom"></div>
+    <div class="pr"><label class="pl">Name</label><input id="prop-name" class="pi" type="text" value="Custom Track"></div>
+  </div>
+  <div class="ps">
+    <div class="pst">Dimensions</div>
+    <div class="pr">
+      <label class="pl">Track Width</label>
+      <div class="prr"><input id="prop-width" type="range" min="6" max="20" value="14" step="1"><span id="prop-width-val" class="prv">14</span></div>
+    </div>
+    <div class="pr">
+      <label class="pl">Grid Size</label>
+      <div class="prr"><input id="prop-grid" type="range" min="1" max="20" value="5" step="1"><span id="prop-grid-val" class="prv">5</span></div>
+    </div>
+  </div>
+  <div class="ps">
+    <div class="pst">Game Settings</div>
+    <div class="pr"><label class="pl">Money Multiplier</label><input id="prop-mult" class="pi" type="number" value="1.0" step="0.5" min="0.5"></div>
+    <div class="pr"><label class="pl">Unlock Cost ($)</label><input id="prop-cost" class="pi" type="number" value="0" step="500" min="0"></div>
+    <div class="pr"><label class="pl">Required Level</label><input id="prop-level" class="pi" type="number" value="1" min="1" max="99"></div>
+  </div>
+  <div class="ps">
+    <div class="pst">Shortcuts</div>
+    <div style="font-size:11px;opacity:.4;line-height:1.8">
+      1 &mdash; Select/Move<br>
+      2 &mdash; Add Point<br>
+      3 &mdash; Tree Zone<br>
+      4 &mdash; Delete<br>
+      G &mdash; Toggle Grid<br>
+      Shift &mdash; Hold to Snap<br>
+      WASD &mdash; Pan Camera<br>
+      Scroll &mdash; Zoom<br>
+      Ctrl+Z / Ctrl+Shift+Z &mdash; Undo/Redo<br>
+      Ctrl+S &mdash; Copy JSON<br>
+      Right-click &mdash; Delete Point
+    </div>
+  </div>
+</div>
+
+<div id="statusbar">
+  <span id="status-coords">X: 0.0 &nbsp; Z: 0.0</span>
+  <span id="status-tool">Tool: Add Point</span>
+  <span id="status-hint">Click to add &bull; WASD pan &bull; Scroll zoom &bull; G grid</span>
+</div>
+
+<div id="modal-overlay">
+  <div id="modal">
+    <div id="modal-header"><h3 id="modal-title">Export</h3><button id="modal-close">&times;</button></div>
+    <textarea id="modal-textarea"></textarea>
+    <div id="modal-buttons">
+      <button class="mb primary" id="modal-copy">Copy to Clipboard</button>
+      <button class="mb primary" id="modal-download">Download .json</button>
+      <button class="mb secondary" id="modal-load">Load from Text</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import * as THREE from 'three';
+
+const state = {
+  controlPoints: [],
+  treeZones: [],
+  trackWidth: 14,
+  trackName: 'Custom Track',
+  trackId: 'track_custom',
+  baseMoneyMultiplier: 1.0,
+  costToUnlock: 0,
+  requiredLevel: 1,
+  selectedTool: 'add',
+  selectedPointIndex: -1,
+  history: [],
+  historyIndex: -1,
+  cameraSize: 100,
+  gridEnabled: true,
+  gridSize: 5,
+  snapEnabled: false,
+};
+
+const container = document.getElementById('canvas-container');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const aspect = window.innerWidth / window.innerHeight;
+const camera = new THREE.OrthographicCamera(
+  -state.cameraSize * aspect, state.cameraSize * aspect,
+  state.cameraSize, -state.cameraSize,
+  0.1, 2000
+);
+camera.position.set(0, 200, 0);
+camera.up.set(0, 0, -1);
+camera.lookAt(0, 0, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+dirLight.position.set(50, 100, 30);
+scene.add(dirLight);
+
+const groundGeo = new THREE.PlaneGeometry(2000, 2000);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x3a6b2f, roughness: 0.9 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.01;
+scene.add(ground);
+
+let gridHelper = new THREE.GridHelper(1000, Math.floor(1000 / state.gridSize), 0x333355, 0x222244);
+gridHelper.position.y = 0.01;
+scene.add(gridHelper);
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+function getGroundPoint(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const target = new THREE.Vector3();
+  const hit = raycaster.ray.intersectPlane(groundPlane, target);
+  return hit ? target : null;
+}
+
+function snapPos(pos) {
+  if (!state.snapEnabled) return pos.clone();
+  const g = state.gridSize;
+  return new THREE.Vector3(Math.round(pos.x / g) * g, 0, Math.round(pos.z / g) * g);
+}
+
+function pixelThreshold() {
+  const w = renderer.domElement.clientWidth;
+  const worldW = camera.right - camera.left;
+  return 15 * (worldW / w);
+}
+
+const cpGroup = new THREE.Group();
+scene.add(cpGroup);
+
+function rebuildCP() {
+  while (cpGroup.children.length) {
+    const c = cpGroup.children[0];
+    cpGroup.remove(c);
+    if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); }
+  }
+  for (let i = 0; i < state.controlPoints.length; i++) {
+    const p = state.controlPoints[i];
+    const isFirst = i === 0;
+    const isLast = i === state.controlPoints.length - 1 && state.controlPoints.length > 1;
+    let bg = '#4488ff';
+    if (isFirst) bg = '#44ff44';
+    else if (isLast) bg = '#ff4444';
+    const sprite = makeNumSprite(i + 1, bg);
+    sprite.position.set(p.x, 2, p.z);
+    cpGroup.add(sprite);
+  }
+}
+
+function makeNumSprite(num, bg) {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = bg;
+  ctx.beginPath(); ctx.arc(32, 32, 28, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 26px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(String(num), 32, 33);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, sizeAttenuation: true });
+  const s = new THREE.Sprite(mat);
+  s.scale.set(4, 4, 1);
+  return s;
+}
+
+let previewMeshes = [];
+
+function clearPreview() {
+  for (const m of previewMeshes) {
+    scene.remove(m);
+    if (m.geometry) m.geometry.dispose();
+    if (m.material) m.material.dispose();
+  }
+  previewMeshes = [];
+}
+
+function rebuildPreview() {
+  clearPreview();
+  if (state.controlPoints.length < 2) return;
+
+  const curve = new THREE.CatmullRomCurve3(
+    state.controlPoints.map(p => new THREE.Vector3(p.x, 0, p.z)),
+    false
+  );
+  const N = 600;
+  const samples = [], tangents = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    samples.push(curve.getPointAt(t));
+    tangents.push(curve.getTangentAt(t).normalize());
+  }
+  buildRoad(samples, tangents);
+  buildCenterLine(samples);
+  buildGuardrails(samples, tangents);
+  buildMarkers(samples, tangents);
+}
+
+function buildRoad(samples, tangents) {
+  const hw = state.trackWidth / 2;
+  const v = [], idx = [], col = [];
+  const road = new THREE.Color(0x555555);
+  const edge = new THREE.Color(0xffffff);
+  for (let i = 0; i < samples.length; i++) {
+    const p = samples[i], t = tangents[i];
+    const r = new THREE.Vector3().crossVectors(t, new THREE.Vector3(0, 1, 0)).normalize();
+    v.push(
+      p.x - r.x * hw, 0.02, p.z - r.z * hw,
+      p.x - r.x * (hw - 0.6), 0.025, p.z - r.z * (hw - 0.6),
+      p.x + r.x * (hw - 0.6), 0.025, p.z + r.z * (hw - 0.6),
+      p.x + r.x * hw, 0.02, p.z + r.z * hw
+    );
+    col.push(edge.r, edge.g, edge.b, road.r, road.g, road.b, road.r, road.g, road.b, edge.r, edge.g, edge.b);
+  }
+  for (let i = 0; i < samples.length - 1; i++) {
+    const b = i * 4;
+    idx.push(b, b+1, b+4, b+1, b+5, b+4, b+1, b+2, b+5, b+2, b+6, b+5, b+2, b+3, b+6, b+3, b+7, b+6);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true }));
+  scene.add(mesh);
+  previewMeshes.push(mesh);
+}
+
+function buildCenterLine(samples) {
+  const pts = [];
+  const N = samples.length - 1;
+  for (let i = 0; i <= N; i += 12) {
+    if ((Math.floor(i / 12)) % 2 === 0) {
+      const e = Math.min(i + 6, N);
+      pts.push(new THREE.Vector3(samples[i].x, 0.03, samples[i].z), new THREE.Vector3(samples[e].x, 0.03, samples[e].z));
+    }
+  }
+  if (pts.length < 2) return;
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const line = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xffff44 }));
+  scene.add(line);
+  previewMeshes.push(line);
+}
+
+function buildGuardrails(samples, tangents) {
+  const hw = state.trackWidth / 2 + 1.5;
+  for (const side of [-1, 1]) {
+    const v = [], idx = [];
+    for (let i = 0; i < samples.length; i++) {
+      const p = samples[i], t = tangents[i];
+      const r = new THREE.Vector3().crossVectors(t, new THREE.Vector3(0, 1, 0)).normalize();
+      const ox = r.x * side * hw, oz = r.z * side * hw;
+      v.push(p.x + ox, 0, p.z + oz, p.x + ox, 0.7, p.z + oz);
+    }
+    for (let i = 0; i < samples.length - 1; i++) {
+      const b = i * 2;
+      idx.push(b, b+1, b+2, b+1, b+3, b+2);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+    geo.setIndex(idx);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xcc3333, side: THREE.DoubleSide }));
+    scene.add(mesh);
+    previewMeshes.push(mesh);
+  }
+  const postGeo = new THREE.BoxGeometry(0.2, 0.9, 0.2);
+  const postMat = new THREE.MeshBasicMaterial({ color: 0xdddddd });
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < samples.length; i += 25) {
+      const p = samples[i], t = tangents[i];
+      const r = new THREE.Vector3().crossVectors(t, new THREE.Vector3(0, 1, 0)).normalize();
+      const post = new THREE.Mesh(postGeo, postMat);
+      post.position.set(p.x + r.x * side * hw, 0.45, p.z + r.z * side * hw);
+      scene.add(post);
+      previewMeshes.push(post);
+    }
+  }
+}
+
+function buildMarkers(samples, tangents) {
+  const hw = state.trackWidth / 2;
+  const poleGeo = new THREE.CylinderGeometry(0.15, 0.15, 3, 6);
+  const bannerGeo = new THREE.BoxGeometry(state.trackWidth, 0.5, 0.15);
+
+  const sp = samples[0], st = tangents[0];
+  const sr = new THREE.Vector3().crossVectors(st, new THREE.Vector3(0, 1, 0)).normalize();
+  const startBanner = new THREE.Mesh(bannerGeo, new THREE.MeshBasicMaterial({ color: 0x44aa44 }));
+  startBanner.position.set(sp.x, 2.8, sp.z);
+  startBanner.lookAt(sp.x + st.x, 2.8, sp.z + st.z);
+  scene.add(startBanner); previewMeshes.push(startBanner);
+  for (const s of [-1, 1]) {
+    const pole = new THREE.Mesh(poleGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    pole.position.set(sp.x + sr.x * s * hw, 1.5, sp.z + sr.z * s * hw);
+    scene.add(pole); previewMeshes.push(pole);
+  }
+
+  const ep = samples[samples.length - 1], et = tangents[tangents.length - 1];
+  const er = new THREE.Vector3().crossVectors(et, new THREE.Vector3(0, 1, 0)).normalize();
+  const endBanner = new THREE.Mesh(bannerGeo, new THREE.MeshBasicMaterial({ color: 0xff4444 }));
+  endBanner.position.set(ep.x, 2.8, ep.z);
+  endBanner.lookAt(ep.x + et.x, 2.8, ep.z + et.z);
+  scene.add(endBanner); previewMeshes.push(endBanner);
+  for (const s of [-1, 1]) {
+    const pole = new THREE.Mesh(poleGeo, new THREE.MeshBasicMaterial({ color: 0xff4444 }));
+    pole.position.set(ep.x + er.x * s * hw, 1.5, ep.z + er.z * s * hw);
+    scene.add(pole); previewMeshes.push(pole);
+  }
+}
+
+const tzGroup = new THREE.Group();
+scene.add(tzGroup);
+
+function rebuildTZ() {
+  while (tzGroup.children.length) {
+    const c = tzGroup.children[0];
+    tzGroup.remove(c);
+    if (c.geometry) c.geometry.dispose();
+    if (c.material) c.material.dispose();
+  }
+  for (const z of state.treeZones) {
+    const geo = new THREE.PlaneGeometry(z.width, z.height);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x44ff44, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthTest: false }));
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(z.x + z.width / 2, 0.05, z.z + z.height / 2);
+    tzGroup.add(mesh);
+    const edges = new THREE.EdgesGeometry(new THREE.PlaneGeometry(z.width, z.height));
+    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x44ff44 }));
+    line.rotation.x = -Math.PI / 2;
+    line.position.set(z.x + z.width / 2, 0.06, z.z + z.height / 2);
+    tzGroup.add(line);
+  }
+}
+
+let tzPreview = null, tzStart = null;
+
+function showTZPreview(start, cur) {
+  clearTZPreview();
+  const x = Math.min(start.x, cur.x), z = Math.min(start.z, cur.z);
+  const w = Math.abs(cur.x - start.x), h = Math.abs(cur.z - start.z);
+  if (w < 0.5 || h < 0.5) return;
+  const geo = new THREE.PlaneGeometry(w, h);
+  tzPreview = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x88ff88, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthTest: false }));
+  tzPreview.rotation.x = -Math.PI / 2;
+  tzPreview.position.set(x + w / 2, 0.08, z + h / 2);
+  scene.add(tzPreview);
+}
+
+function clearTZPreview() {
+  if (tzPreview) { scene.remove(tzPreview); tzPreview.geometry.dispose(); tzPreview.material.dispose(); tzPreview = null; }
+}
+
+function findNearest(pos, threshold) {
+  let min = threshold, idx = -1;
+  for (let i = 0; i < state.controlPoints.length; i++) {
+    const dx = pos.x - state.controlPoints[i].x, dz = pos.z - state.controlPoints[i].z;
+    const d = Math.sqrt(dx * dx + dz * dz);
+    if (d < min) { min = d; idx = i; }
+  }
+  return idx;
+}
+
+function findZone(pos) {
+  for (let i = 0; i < state.treeZones.length; i++) {
+    const z = state.treeZones[i];
+    if (pos.x >= z.x && pos.x <= z.x + z.width && pos.z >= z.z && pos.z <= z.z + z.height) return i;
+  }
+  return -1;
+}
+
+let isDragging = false, isPanning = false, panMouse = { x: 0, y: 0 }, panCam = { x: 0, z: 0 };
+
+renderer.domElement.addEventListener('mousedown', (e) => {
+  if (e.target !== renderer.domElement) return;
+  if (e.button === 1) {
+    isPanning = true;
+    panMouse = { x: e.clientX, y: e.clientY };
+    panCam = { x: camera.position.x, z: camera.position.z };
+    e.preventDefault();
+    return;
+  }
+  if (e.button !== 0) return;
+  const pos = getGroundPoint(e);
+  if (!pos) return;
+  const snapped = snapPos(pos);
+
+  switch (state.selectedTool) {
+    case 'add':
+      state.controlPoints.push(snapped);
+      pushHistory();
+      rebuildCP(); rebuildPreview(); updateInfo();
+      break;
+    case 'select': {
+      const idx = findNearest(pos, pixelThreshold());
+      if (idx >= 0) { state.selectedPointIndex = idx; isDragging = true; }
+      break;
+    }
+    case 'treeZone':
+      tzStart = { x: snapped.x, z: snapped.z };
+      break;
+    case 'delete': {
+      const ci = findNearest(pos, pixelThreshold());
+      if (ci >= 0) { state.controlPoints.splice(ci, 1); pushHistory(); rebuildCP(); rebuildPreview(); updateInfo(); break; }
+      const zi = findZone(pos);
+      if (zi >= 0) { state.treeZones.splice(zi, 1); pushHistory(); rebuildTZ(); }
+      break;
+    }
+  }
+});
+
+renderer.domElement.addEventListener('mousemove', (e) => {
+  const pos = getGroundPoint(e);
+  if (pos) document.getElementById('status-coords').textContent = `X: ${pos.x.toFixed(1)}  Z: ${pos.z.toFixed(1)}`;
+
+  if (isPanning) {
+    const dx = e.clientX - panMouse.x, dy = e.clientY - panMouse.y;
+    const scale = (camera.right - camera.left) / renderer.domElement.clientWidth;
+    camera.position.x = panCam.x - dx * scale;
+    camera.position.z = panCam.z - dy * scale;
+    return;
+  }
+  if (isDragging && state.selectedPointIndex >= 0 && pos) {
+    const snapped = snapPos(pos);
+    state.controlPoints[state.selectedPointIndex].set(snapped.x, 0, snapped.z);
+    rebuildCP(); rebuildPreview();
+    return;
+  }
+  if (state.selectedTool === 'treeZone' && tzStart && pos) {
+    const snapped = snapPos(pos);
+    showTZPreview(tzStart, { x: snapped.x, z: snapped.z });
+  }
+});
+
+window.addEventListener('mouseup', (e) => {
+  if (e.button === 1) { isPanning = false; return; }
+  if (isDragging) { isDragging = false; pushHistory(); state.selectedPointIndex = -1; return; }
+  if (state.selectedTool === 'treeZone' && tzStart) {
+    const pos = getGroundPoint(e);
+    if (pos) {
+      const snapped = snapPos(pos);
+      const x = Math.min(tzStart.x, snapped.x), z = Math.min(tzStart.z, snapped.z);
+      const w = Math.abs(snapped.x - tzStart.x), h = Math.abs(snapped.z - tzStart.z);
+      if (w > 2 && h > 2) { state.treeZones.push({ x, z, width: w, height: h }); pushHistory(); rebuildTZ(); }
+    }
+    tzStart = null; clearTZPreview();
+  }
+});
+
+renderer.domElement.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const pos = getGroundPoint(e);
+  if (!pos) return;
+  const idx = findNearest(pos, pixelThreshold());
+  if (idx >= 0) { state.controlPoints.splice(idx, 1); pushHistory(); rebuildCP(); rebuildPreview(); updateInfo(); }
+  const zi = findZone(pos);
+  if (idx < 0 && zi >= 0) { state.treeZones.splice(zi, 1); pushHistory(); rebuildTZ(); }
+});
+
+renderer.domElement.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  state.cameraSize = Math.max(10, Math.min(500, state.cameraSize * (e.deltaY > 0 ? 1.1 : 0.9)));
+  updateFrustum();
+}, { passive: false });
+
+function updateFrustum() {
+  const a = window.innerWidth / window.innerHeight;
+  camera.left = -state.cameraSize * a;
+  camera.right = state.cameraSize * a;
+  camera.top = state.cameraSize;
+  camera.bottom = -state.cameraSize;
+  camera.updateProjectionMatrix();
+}
+
+const keys = {};
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  keys[e.code] = true;
+  if (e.code === 'Digit1') selectTool('select');
+  if (e.code === 'Digit2') selectTool('add');
+  if (e.code === 'Digit3') selectTool('treeZone');
+  if (e.code === 'Digit4') selectTool('delete');
+  if (e.code === 'KeyG') toggleGrid();
+  if (e.code === 'Delete' || e.code === 'Backspace') deleteSelected();
+  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ' && !e.shiftKey) { e.preventDefault(); undo(); }
+  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ' && e.shiftKey) { e.preventDefault(); redo(); }
+  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') { e.preventDefault(); redo(); }
+  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') { e.preventDefault(); exportClipboard(); }
+});
+window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+function updateCamera() {
+  const speed = state.cameraSize * 0.015;
+  if (keys['KeyW']) camera.position.z -= speed;
+  if (keys['KeyS']) camera.position.z += speed;
+  if (keys['KeyA']) camera.position.x -= speed;
+  if (keys['KeyD']) camera.position.x += speed;
+  state.snapEnabled = !!(keys['ShiftLeft'] || keys['ShiftRight']);
+  document.getElementById('btn-snap').textContent = `Snap: ${state.snapEnabled ? 'ON' : 'OFF'}`;
+}
+
+function pushHistory() {
+  const snap = {
+    cp: state.controlPoints.map(p => ({ x: p.x, y: p.y, z: p.z })),
+    tz: state.treeZones.map(z => ({ ...z })),
+  };
+  state.history = state.history.slice(0, state.historyIndex + 1);
+  state.history.push(snap);
+  state.historyIndex = state.history.length - 1;
+  if (state.history.length > 100) { state.history.shift(); state.historyIndex--; }
+}
+
+function undo() {
+  if (state.historyIndex <= 0) return;
+  state.historyIndex--;
+  restoreSnap(state.history[state.historyIndex]);
+}
+
+function redo() {
+  if (state.historyIndex >= state.history.length - 1) return;
+  state.historyIndex++;
+  restoreSnap(state.history[state.historyIndex]);
+}
+
+function restoreSnap(snap) {
+  state.controlPoints = snap.cp.map(p => new THREE.Vector3(p.x, p.y, p.z));
+  state.treeZones = snap.tz.map(z => ({ ...z }));
+  rebuildAll();
+}
+
+function rebuildAll() { rebuildCP(); rebuildTZ(); rebuildPreview(); updateInfo(); }
+
+function selectTool(tool) {
+  state.selectedTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+  const names = { select: 'Select/Move', add: 'Add Point', treeZone: 'Tree Zone', delete: 'Delete' };
+  document.getElementById('status-tool').textContent = `Tool: ${names[tool]}`;
+}
+
+function toggleGrid() {
+  state.gridEnabled = !state.gridEnabled;
+  gridHelper.visible = state.gridEnabled;
+  document.getElementById('btn-grid').textContent = `Grid: ${state.gridEnabled ? 'ON' : 'OFF'}`;
+}
+
+function deleteSelected() {
+  if (state.selectedPointIndex >= 0) {
+    state.controlPoints.splice(state.selectedPointIndex, 1);
+    state.selectedPointIndex = -1;
+    pushHistory(); rebuildAll();
+  }
+}
+
+function generateJSON() {
+  return {
+    id: state.trackId,
+    name: state.trackName,
+    baseMoneyMultiplier: state.baseMoneyMultiplier,
+    costToUnlock: state.costToUnlock,
+    requiredLevel: state.requiredLevel,
+    trackWidth: state.trackWidth,
+    offset: [0, 0, 0],
+    controlPoints: state.controlPoints.map(p => [Math.round(p.x * 100) / 100, 0, Math.round(p.z * 100) / 100]),
+    treeZones: state.treeZones.map(z => ({ ...z })),
+  };
+}
+
+function exportClipboard() {
+  navigator.clipboard.writeText(JSON.stringify(generateJSON(), null, 2)).then(() => showToast('Copied to clipboard'));
+}
+
+function downloadJSON() {
+  const blob = new Blob([JSON.stringify(generateJSON(), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${state.trackId}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importJSON(text) {
+  try {
+    const d = JSON.parse(text);
+    state.controlPoints = (d.controlPoints || []).map(p => new THREE.Vector3(p[0], p[1] || 0, p[2]));
+    state.treeZones = d.treeZones || [];
+    state.trackWidth = d.trackWidth || 14;
+    state.trackName = d.name || 'Custom Track';
+    state.trackId = d.id || 'track_custom';
+    state.baseMoneyMultiplier = d.baseMoneyMultiplier || 1.0;
+    state.costToUnlock = d.costToUnlock || 0;
+    state.requiredLevel = d.requiredLevel || 1;
+    syncProps(); pushHistory(); rebuildAll();
+    showToast('Track imported');
+  } catch (err) { showToast('Invalid JSON'); }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function updateInfo() {
+  document.getElementById('toolbar-info').textContent = `Points: ${state.controlPoints.length} | Zones: ${state.treeZones.length}`;
+}
+
+function syncProps() {
+  document.getElementById('prop-id').value = state.trackId;
+  document.getElementById('prop-name').value = state.trackName;
+  document.getElementById('prop-width').value = state.trackWidth;
+  document.getElementById('prop-width-val').textContent = state.trackWidth;
+  document.getElementById('prop-mult').value = state.baseMoneyMultiplier;
+  document.getElementById('prop-cost').value = state.costToUnlock;
+  document.getElementById('prop-level').value = state.requiredLevel;
+}
+
+document.getElementById('prop-id').addEventListener('input', (e) => { state.trackId = e.target.value; });
+document.getElementById('prop-name').addEventListener('input', (e) => { state.trackName = e.target.value; });
+document.getElementById('prop-width').addEventListener('input', (e) => {
+  state.trackWidth = parseInt(e.target.value);
+  document.getElementById('prop-width-val').textContent = state.trackWidth;
+  rebuildPreview();
+});
+document.getElementById('prop-grid').addEventListener('input', (e) => {
+  state.gridSize = parseInt(e.target.value);
+  document.getElementById('prop-grid-val').textContent = state.gridSize;
+  scene.remove(gridHelper);
+  gridHelper.geometry.dispose(); gridHelper.material.dispose();
+  gridHelper = new THREE.GridHelper(1000, Math.floor(1000 / state.gridSize), 0x333355, 0x222244);
+  gridHelper.position.y = 0.01;
+  gridHelper.visible = state.gridEnabled;
+  scene.add(gridHelper);
+});
+document.getElementById('prop-mult').addEventListener('input', (e) => { state.baseMoneyMultiplier = parseFloat(e.target.value) || 1.0; });
+document.getElementById('prop-cost').addEventListener('input', (e) => { state.costToUnlock = parseInt(e.target.value) || 0; });
+document.getElementById('prop-level').addEventListener('input', (e) => { state.requiredLevel = parseInt(e.target.value) || 1; });
+
+document.querySelectorAll('.tool-btn').forEach(b => b.addEventListener('click', () => selectTool(b.dataset.tool)));
+document.getElementById('btn-new').addEventListener('click', () => {
+  if (state.controlPoints.length > 0 && !confirm('Clear all?')) return;
+  state.controlPoints = []; state.treeZones = []; state.history = []; state.historyIndex = -1;
+  pushHistory(); rebuildAll();
+});
+document.getElementById('btn-undo').addEventListener('click', undo);
+document.getElementById('btn-redo').addEventListener('click', redo);
+document.getElementById('btn-grid').addEventListener('click', toggleGrid);
+document.getElementById('btn-snap').addEventListener('click', () => {
+  state.snapEnabled = !state.snapEnabled;
+  document.getElementById('btn-snap').textContent = `Snap: ${state.snapEnabled ? 'ON' : 'OFF'}`;
+});
+
+function showModal(mode) {
+  const overlay = document.getElementById('modal-overlay');
+  const title = document.getElementById('modal-title');
+  const ta = document.getElementById('modal-textarea');
+  const copyBtn = document.getElementById('modal-copy');
+  const dlBtn = document.getElementById('modal-download');
+  const loadBtn = document.getElementById('modal-load');
+
+  if (mode === 'export') {
+    title.textContent = 'Export Track';
+    ta.value = JSON.stringify(generateJSON(), null, 2);
+    ta.readOnly = true;
+    copyBtn.classList.remove('hidden');
+    dlBtn.classList.remove('hidden');
+    loadBtn.classList.add('hidden');
+  } else {
+    title.textContent = 'Import Track';
+    ta.value = ''; ta.readOnly = false;
+    copyBtn.classList.add('hidden');
+    dlBtn.classList.add('hidden');
+    loadBtn.classList.remove('hidden');
+  }
+  overlay.classList.add('show');
+}
+
+document.getElementById('btn-export').addEventListener('click', () => showModal('export'));
+document.getElementById('btn-import').addEventListener('click', () => showModal('import'));
+document.getElementById('btn-import-file').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => importJSON(r.result);
+    r.readAsText(f);
+  };
+  input.click();
+});
+document.getElementById('modal-close').addEventListener('click', () => document.getElementById('modal-overlay').classList.remove('show'));
+document.getElementById('modal-copy').addEventListener('click', () => {
+  navigator.clipboard.writeText(document.getElementById('modal-textarea').value).then(() => showToast('Copied'));
+});
+document.getElementById('modal-download').addEventListener('click', downloadJSON);
+document.getElementById('modal-load').addEventListener('click', () => {
+  importJSON(document.getElementById('modal-textarea').value);
+  document.getElementById('modal-overlay').classList.remove('show');
+});
+document.getElementById('modal-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modal-overlay')) document.getElementById('modal-overlay').classList.remove('show');
+});
+
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  updateFrustum();
+});
+
+pushHistory();
+
+function animate() {
+  requestAnimationFrame(animate);
+  updateCamera();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

@@ -153,6 +153,45 @@ export const TRACK_DEFS = [
   },
 ];
 
+export async function loadCustomTracks() {
+  try {
+    const res = await fetch('tracks/manifest.json');
+    if (!res.ok) return [];
+    const manifest = await res.json();
+    const tracks = [];
+    for (const file of (manifest.tracks || [])) {
+      try {
+        const tr = await fetch(`tracks/${file}`);
+        if (tr.ok) tracks.push(await tr.json());
+      } catch (_) {}
+    }
+    return tracks;
+  } catch (_) {
+    return [];
+  }
+}
+
+export function assignCustomOffsets(customDefs, builtInDefs) {
+  let maxX = 0;
+  for (const d of builtInDefs) {
+    const ox = (d.offset || [0,0,0])[0];
+    for (const p of d.controlPoints) {
+      const px = ox + p[0];
+      if (px > maxX) maxX = px;
+    }
+  }
+  let nextX = maxX + 120;
+  for (const d of customDefs) {
+    d.offset = [nextX, 0, 0];
+    let w = 0;
+    for (const p of d.controlPoints) {
+      if (p[0] > w) w = p[0];
+      if (-p[0] > w) w = -p[0];
+    }
+    nextX += w + 120;
+  }
+}
+
 export class Track {
   constructor(scene, def) {
     this.id = def.id;
@@ -163,8 +202,10 @@ export class Track {
     this.bestLapTime = null;
     this.ghostData = null;
     this.isDimmed = false;
+    this.treeZones = def.treeZones || null;
+    this.offset = def.offset || [0, 0, 0];
 
-    const off = def.offset || [0, 0, 0];
+    const off = this.offset;
     this.curve = new THREE.CatmullRomCurve3(
       def.controlPoints.map(p => new THREE.Vector3(p[0] + off[0], p[1] + off[1], p[2] + off[2])),
       false
@@ -415,13 +456,79 @@ export class Track {
     ]).then((results) => {
       const models = results.slice(0, 2).filter(m => m !== null);
       const texture = results[2];
+      const useZones = this.treeZones && this.treeZones.length > 0;
+
       if (models.length === 0) {
-        this._placeProceduralTrees(scene, treeDistance);
+        if (useZones) {
+          this._placeProceduralTreesInZones(scene);
+        } else {
+          this._placeProceduralTrees(scene, treeDistance);
+        }
         return;
       }
       models.forEach(m => this._flattenModel(m, texture));
-      this._scatterModels(scene, models, treeDistance);
+      if (useZones) {
+        this._scatterModelsInZones(scene, models);
+      } else {
+        this._scatterModels(scene, models, treeDistance);
+      }
     });
+  }
+
+  _scatterModelsInZones(scene, models) {
+    const seeded = this._seedRandom(this.id);
+    const off = this.offset;
+    for (const zone of this.treeZones) {
+      const area = zone.width * zone.height;
+      const count = Math.max(1, Math.floor(area / 80));
+      for (let i = 0; i < count; i++) {
+        const x = zone.x + off[0] + seeded() * zone.width;
+        const z = zone.z + off[2] + seeded() * zone.height;
+        const tree = models[Math.floor(seeded() * models.length)].clone();
+        const s = (0.7 + seeded() * 1.0) * 10;
+        tree.scale.set(s, s, s);
+        tree.position.set(x, 0, z);
+        tree.rotation.y = seeded() * Math.PI * 2;
+        scene.add(tree);
+        this.treeMeshes.push(tree);
+      }
+    }
+  }
+
+  _placeProceduralTreesInZones(scene) {
+    const trunkGeo = new THREE.CylinderGeometry(0.15, 0.25, 2, 6);
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b3a1f, flatShading: true, roughness: 0.9 });
+    const foliageGeo = new THREE.ConeGeometry(1.5, 3, 6);
+    const foliageMat = new THREE.MeshStandardMaterial({ color: 0x2d6b1e, flatShading: true, roughness: 0.8 });
+
+    const seeded = this._seedRandom(this.id);
+    const off = this.offset;
+    for (const zone of this.treeZones) {
+      const area = zone.width * zone.height;
+      const count = Math.max(1, Math.floor(area / 80));
+      for (let i = 0; i < count; i++) {
+        const x = zone.x + off[0] + seeded() * zone.width;
+        const z = zone.z + off[2] + seeded() * zone.height;
+
+        const group = new THREE.Group();
+        const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+        trunk.position.y = 1;
+        trunk.castShadow = true;
+        group.add(trunk);
+
+        const foliage = new THREE.Mesh(foliageGeo, foliageMat);
+        foliage.position.y = 3.2;
+        foliage.castShadow = true;
+        group.add(foliage);
+
+        const s = 0.7 + seeded() * 0.9;
+        group.scale.set(s, s, s);
+        group.position.set(x, 0, z);
+        group.rotation.y = seeded() * Math.PI * 2;
+        scene.add(group);
+        this.treeMeshes.push(group);
+      }
+    }
   }
 
   _loadTree(loader, url) {
